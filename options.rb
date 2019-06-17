@@ -280,10 +280,9 @@ class Options
     def self.parse(args=nil)
         args ||= [*ARGV]
         # 1st pass:
-        #     go through every required option and extract the args (and following args as necessary)
-        #     error if any are missing or wrongly typed or whatever
+        #     go through every required flag and value option and extract the args (and following args as necessary)
         @@commands.each do |param|
-            if param.required && !param.is_a?(Objects::Positional) && !param.is_a?(Objects::Group)
+            if param.required && param.is_a?(Objects::Flag) && !param.is_a?(Objects::Value)
                 param.find(args, @@type_regexes)
             end
         end
@@ -303,31 +302,28 @@ class Options
                 param.find(args, @@type_regexes)
             end
         end
-
+        # 4th pass:
+        #     all remaining args should be positional at this point
+        #     go through required positional args and extract them
         @@commands.each do |param|
             if param.required && param.is_a?(Objects::Positional)
                 param.find(args, @@type_regexes)
             end
         end
-
-        # Get positional values for unsatisfied required groups
+        # 4th pass:
+        #     go through positional args that are part of required groups and extract them
         @@commands.each do |param|
             if param.is_a?(Objects::Positional) && param.group && param.group.required && !param.group.value
                 param.find(args, @@type_regexes)
             end
         end        
-
         # Make sure any required groups have values.
         @@commands.each do |param|
             if param.is_a?(Objects::Group) && param.required && param.value.nil?
                 raise "An argument for #{param.name.to_s} is required."
             end
         end
-
-        # 5th pass:
-        #     extract all required positional args
-        #     extract all non-required positional args
-
+        
         options = OpenStruct.new
         @@commands.each do |param|
             options[param.name] = param.value
