@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+
+VERSION = "0.1.0"
+
+require_relative 'usage'
+
+def version(*args)
+    puts "blossom v#{VERSION}"
+end
+
+def help(help_command:)
+    puts BlossomUsage.message
+end
+
+def run(program_file:, input:, output_file:, verbose:, trace_on:, trace_dir:, colours:, keep_rationals:, output_type:, validate:)
+    p program_file
+    p input
+    p keep_rationals
+    p trace_on
+end
+
+p Options.parse
+
+# send(BlossomUsage.action, **BlossomUsage.options) if BlossomUsage.action
