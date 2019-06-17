@@ -6,6 +6,7 @@ module Objects
 
         attr_reader :value
         attr_reader :required
+        attr_reader :group
 
         def name
             if @group
@@ -31,13 +32,13 @@ module Objects
     class Positional < Base
 
         def initialize(settings, group=nil)
+            @type = settings.type || nil
             if group
                 @group = group
             else
                 raise "A positional option needs a name" if settings.name.nil?
                 @name        = settings.name
                 @required    = settings.required.nil? ? false : settings.required
-                @type        = settings.type || nil
                 @description = settings.description || ""
             end
         end
@@ -45,7 +46,11 @@ module Objects
         def find(args, types)
             type_regex = types[@type]
             if !args.empty?
-                i = args.find_index { |a| a =~ type_regex}
+                if type_regex.nil?
+                    i = 0
+                else
+                    i = args.find_index { |a| a =~ type_regex}
+                end
                 if i.nil?
                     raise "Provided argument '#{args[0]}' needs to be the #{@type} type."
                 end
@@ -77,11 +82,11 @@ module Objects
 
         def initialize(settings, group=nil)
             raise "An options flag needs a commands list" if settings.commands.nil?
-            @commands    = settings.commands
+            @commands = settings.commands
 
             if group
                 raise "A group option needs a value" if settings.value.nil?
-                @value = settings.value
+                @flag_value = settings.value
                 @group = group
             else
                 raise "An options flag needs a name" if settings.name.nil?
@@ -100,7 +105,7 @@ module Objects
                     args.delete_at(i)
                     @present = true
                     if @group
-                        @group.value = @value
+                        @group.value = @flag_value
                     else
                         @value = true
                     end
@@ -113,6 +118,7 @@ module Objects
             if switches.include?(@switch)
                 switches.tr!(@switch, "")
                 @present = true
+                # TODO: set group value here?
                 @value   = true
             end
         end
@@ -146,13 +152,11 @@ module Objects
                 @description = settings.description || ""
             end
             @present = false
-            @value   = []
         end
 
         def find(args, types)
             args.each_with_index do |arg, i|
                 if @prefixes.include?(arg) && i + @types.size < args.size
-                    # TODO: check types
                     captures = args[i+1..i+@types.size]
                     values = []
                     arg_types = types.keys
@@ -163,11 +167,13 @@ module Objects
                             raise "Provided argument '#{capture}' needs to be the #{arg_types[i]} type."
                         end
                     end
-                    puts "captures:"
-                    p values
                     args.slice!(i..i+@types.size)
                     @present = true
-                    @value = @types.size == 1 ? values[0] : values
+                    if @group
+                        @group.value = @types.size == 1 ? values[0] : values
+                    else
+                        @value = @types.size == 1 ? values[0] : values
+                    end
                 end
             end
         end
@@ -298,29 +304,30 @@ class Options
             end
         end
 
-        p args
-
         @@commands.each do |param|
             if param.required && param.is_a?(Objects::Positional)
                 param.find(args, @@type_regexes)
             end
         end
 
-        # 4th pass:
-        #     go through all groups with no positional args
-        #     go through all groups with positional args
-        # @@commands.each do |param|
-        #     if param.is_a?(Objects::Group) && param.required
-        #         p param
-        #     end
-        # end
+        # Get positional values for unsatisfied required groups
+        @@commands.each do |param|
+            if param.is_a?(Objects::Positional) && param.group && param.group.required && !param.group.value
+                param.find(args, @@type_regexes)
+            end
+        end        
 
+        # Make sure any required groups have values.
+        @@commands.each do |param|
+            if param.is_a?(Objects::Group) && param.required && param.value.nil?
+                raise "An argument for #{param.name.to_s} is required."
+            end
+        end
 
         # 5th pass:
         #     extract all required positional args
         #     extract all non-required positional args
 
-        # TODO: generate ostruct with results (name => value)
         options = OpenStruct.new
         @@commands.each do |param|
             options[param.name] = param.value
