@@ -23,7 +23,7 @@ Options.group do |g|
         end,
         Options.value do |v|
             v.prefixes    = ["--input"]
-            v.type        = "FILE"
+            v.types       = ["FILE"]
             v.description = "The file path to the blossom graph."
         end,
     ]

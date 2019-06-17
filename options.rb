@@ -15,7 +15,7 @@ module Objects
             end
         end
 
-        def find(args)
+        def find(args, types)
         end
 
     end
@@ -42,6 +42,23 @@ module Objects
             end
         end
 
+        def find(args, types)
+            type_regex = types[@type]
+            if !args.empty?
+                i = args.find_index { |a| a =~ type_regex}
+                if i.nil?
+                    raise "Provided argument '#{args[0]}' needs to be the #{@type} type."
+                end
+                value = args[i]
+                args.delete_at(i)
+                if @group
+                    @group.value = value
+                else
+                    @value = value
+                end
+            end
+        end
+
     end
 
     #
@@ -59,15 +76,16 @@ module Objects
         attr_reader :present
 
         def initialize(settings, group=nil)
+            raise "An options flag needs a commands list" if settings.commands.nil?
+            @commands    = settings.commands
+
             if group
                 raise "A group option needs a value" if settings.value.nil?
                 @value = settings.value
                 @group = group
             else
                 raise "An options flag needs a name" if settings.name.nil?
-                raise "An options flag needs a commands list" if settings.commands.nil?
                 @name        = settings.name
-                @commands    = settings.commands
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
                 @switch      = settings.switch || nil
@@ -76,11 +94,16 @@ module Objects
             @present = false
         end
 
-        def find(args)
+        def find(args, types)
             args.each_with_index do |arg, i|
                 if @commands.include?(arg)
                     args.delete_at(i)
                     @present = true
+                    if @group
+                        @group.value = @value
+                    else
+                        @value = true
+                    end
                 end
             end
         end
@@ -90,6 +113,7 @@ module Objects
             if switches.include?(@switch)
                 switches.tr!(@switch, "")
                 @present = true
+                @value   = true
             end
         end
 
@@ -108,30 +132,42 @@ module Objects
     class Value < Base
 
         def initialize(settings, group=nil)
+            raise "A value option needs a prefix. Otherwise, use a positional option" if settings.prefixes.nil? || settings.prefixes.empty?
+            raise "A value option needs a type list" if settings.types.nil? || settings.types.empty?
+            @prefixes = settings.prefixes
+            @types    = settings.types
             if group
                 @group = group
             else
                 raise "A value option needs a name" if settings.name.nil?
-                raise "A value option needs a type list" if settings.types.nil? || settings.types.empty?
-                raise "A value option needs a prefix. Otherwise, use a positional option" if settings.prefixes.nil? || settings.prefixes.empty?
                 @name        = settings.name
-                @types       = settings.types
-                @prefixes    = settings.prefixes
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
                 @description = settings.description || ""
             end
             @present = false
-            @values  = []
+            @value   = []
         end
 
-        def find(args)
+        def find(args, types)
             args.each_with_index do |arg, i|
                 if @prefixes.include?(arg) && i + @types.size < args.size
-                    values = args[i...i+@types.size] # TODO: test these ranges
-                    args.slice!(i...i+@types.size)
+                    # TODO: check types
+                    captures = args[i+1..i+@types.size]
+                    values = []
+                    arg_types = types.keys
+                    captures.each_with_index do |capture, i|
+                        if capture =~ types[arg_types[i]]
+                            values.push(capture)
+                        else
+                            raise "Provided argument '#{capture}' needs to be the #{arg_types[i]} type."
+                        end
+                    end
+                    puts "captures:"
+                    p values
+                    args.slice!(i..i+@types.size)
                     @present = true
-                    @values = values
+                    @value = @types.size == 1 ? values[0] : values
                 end
             end
         end
@@ -152,6 +188,9 @@ module Objects
     #       Nested groups are not supported.
     #
     class Group < Base
+
+        attr_reader :options
+        attr_writer :value
 
         def initialize
         end
@@ -174,10 +213,10 @@ end
 class Options
 
     @@type_regexes = {
-        'FILE'   => //,
-        'DIR'    => //,
-        'PATH'   => //,
-        'STRING' => //,
+        'FILE'   => /[\\\w\.\/]+\.\w+/,
+        'DIR'    => /[\\\w\.\/]+/,
+        'PATH'   => /[\\\w\.\/]+/,
+        'STRING' => /.+/,
     }
 
     @@usage_header = ""
@@ -199,8 +238,9 @@ class Options
     def self.positional(&block)
         settings = OpenStruct.new
         block.call(settings)
-        p = Objects::Positional.new(settings, @@enclosing_group)
-        @@commands.push(p)
+        o = Objects::Positional.new(settings, @@enclosing_group)
+        @@commands.push(o)
+        return o
     end
 
     def self.flag(&block)
@@ -208,6 +248,7 @@ class Options
         block.call(settings)
         f = Objects::Flag.new(settings, @@enclosing_group)
         @@commands.push(f)
+        return f
     end
  
     def self.value(&block)
@@ -215,6 +256,7 @@ class Options
         block.call(settings)
         v = Objects::Value.new(settings, @@enclosing_group)
         @@commands.push(v)
+        return v
     end
 
     def self.group(&block)
@@ -226,6 +268,7 @@ class Options
         @@enclosing_group = outer_group
         g.setup(settings, @@enclosing_group)
         @@commands.push(g)
+        return g
     end
 
     def self.parse(args=nil)
@@ -235,7 +278,7 @@ class Options
         #     error if any are missing or wrongly typed or whatever
         @@commands.each do |param|
             if param.required && !param.is_a?(Objects::Positional) && !param.is_a?(Objects::Group)
-                param.find(args)
+                param.find(args, @@type_regexes)
             end
         end
         # 2nd pass:
@@ -251,13 +294,27 @@ class Options
         #     go through every non-required non-positional option and extract if there are matches
         @@commands.each do |param|
             if !param.required && !param.is_a?(Objects::Positional) && !param.is_a?(Objects::Group)
-                param.find(args)
+                param.find(args, @@type_regexes)
+            end
+        end
+
+        p args
+
+        @@commands.each do |param|
+            if param.required && param.is_a?(Objects::Positional)
+                param.find(args, @@type_regexes)
             end
         end
 
         # 4th pass:
         #     go through all groups with no positional args
         #     go through all groups with positional args
+        # @@commands.each do |param|
+        #     if param.is_a?(Objects::Group) && param.required
+        #         p param
+        #     end
+        # end
+
 
         # 5th pass:
         #     extract all required positional args
@@ -266,10 +323,6 @@ class Options
         # TODO: generate ostruct with results (name => value)
         options = OpenStruct.new
         @@commands.each do |param|
-            # p param.class
-            # p param.name
-            # p param
-            # puts
             options[param.name] = param.value
         end
         return options
