@@ -1,6 +1,7 @@
 require_relative 'options'
 
 Options.help do |h|
+    h.name     = "blossom"
     h.commands = ["--help", "-h"]
     h.header   = "Blossom usage:"
     h.footer   = "See https://github.com/blossom-lang/blossom for any major issues."
@@ -11,6 +12,7 @@ Options.positional do |p|
     p.type        = "FILE"
     p.required    = true
     p.description = "The file path to the blossom program."
+    p.hint        = "path/to/program.blsm"
 end
 
 Options.group do |g|
@@ -20,11 +22,13 @@ Options.group do |g|
         Options.positional do |p|
             p.type        = "STRING"
             p.description = "The text of the blossom graph."
+            p.hint        = "graph_text"
         end,
         Options.value do |v|
-            v.prefixes    = ["--input"]
+            v.prefixes    = ["--input", "-i"]
             v.types       = ["FILE"]
             v.description = "The file path to the blossom graph."
+            v.hint        = "path/to/graph.blsm"
         end,
     ]
 end
@@ -34,8 +38,9 @@ Options.value do |v|
     v.types       = ["FILE"]
     v.required    = false
     v.default     = nil
-    v.prefixes    = ["--output"]
+    v.prefixes    = ["--output", "-o"]
     v.description = "The file path to save the resultant graph of the program."
+    v.hints       = ["path/to/output/graph.blsm"]
 end
 
 Options.flag do |f|
@@ -62,7 +67,8 @@ Options.value do |v|
     v.required    = false
     v.default     = "trace"
     v.prefixes    = ["--trace-directory"]
-    v.description = "Outputs intermediate graphs throughout the program's execution."
+    v.description = "The directory to save the intermediate graphs."
+    v.hints       = ["directory/to/save/trace/"]
 end
 
 Options.group do |g|
@@ -99,17 +105,17 @@ Options.group do |g|
         Options.flag do |f|
             f.value       = :dot
             f.commands    = ["--dot"]
-            f.description = ""
+            f.description = "Saves output graphs in the Dot format. See https://www.graphviz.org/doc/info/lang.html"
         end,
         Options.flag do |f|
             f.value       = :graphML
             f.commands    = ["--graphML"]
-            f.description = ""
+            f.description = "Saves output graphs in the GraphML format. See http://graphml.graphdrawing.org/"
         end,
         Options.flag do |f|
             f.value       = :blossom
             f.commands    = ["--blossom"]
-            f.description = ""
+            f.description = "Saves output graphs in the Blossom format."
         end,
     ]
 end
