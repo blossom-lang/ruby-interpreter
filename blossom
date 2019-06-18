@@ -4,21 +4,27 @@ VERSION = "0.1.0"
 
 require_relative 'usage'
 
-def version(*args)
+def version
     puts "blossom v#{VERSION}"
 end
 
-def help(help_command:)
-    puts BlossomUsage.message
-end
-
-def run(program_file:, input:, output_file:, verbose:, trace_on:, trace_dir:, colours:, keep_rationals:, output_type:, validate:)
+def run(program_file:, graph_input:, output_file:, verbose:, tracing:, trace_dir:, colour_strategy:, keep_rationals:, output_type:, validate_only:)
     p program_file
-    p input
+    p graph_input
     p keep_rationals
-    p trace_on
+    p tracing
 end
 
-p Options.parse
+args = Options.parse
+
+p args
+puts
+
+if args.version
+    version
+else
+    args.delete_field("version")
+    run(**args.to_h)
+end
 
 # send(BlossomUsage.action, **BlossomUsage.options) if BlossomUsage.action
