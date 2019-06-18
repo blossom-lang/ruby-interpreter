@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+
+require_relative 'lib/arc_test'
+
+# TODO: require all files in `/tests/`
+require_relative 'tests/lexer_tests'
+require_relative 'tests/parser_tests'
+
+TestRunner.run_all
+
+while !TestRunner.finished?
+    sleep(0.1)
+end
+
+TestRunner.print_results
+
+TestRunner.print_breakdown

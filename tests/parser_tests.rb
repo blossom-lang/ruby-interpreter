@@ -1,12 +1,12 @@
+require_relative "../lib/arc_test"
 
 class ParserTests < TestClass
 
     def self.get_tokens(text)
-        lexer = Lexer.new(text, "Parser Test Run")
-        return lexer.tokenise
+        lexer = Tokeniser.tokenise
     end
 
-    test do :missing_graph |t|
+    test :missing_graph do |t|
 
         t.arrange do |options|
             options.graph_tokens = []
@@ -33,14 +33,14 @@ class ParserTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that not run_errors.empty?
-            Assert.that run_result.nil?
+            Assert.that(!run_errors.empty?)
+            Assert.that(run_result.nil?)
             p run_errors
         end
 
     end
 
-    test do :empty_graph |t|
+    test :empty_graph do |t|
 
         t.arrange do |options|
             graph_text = "[]"
@@ -63,14 +63,14 @@ class ParserTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
             p run_result
         end
 
     end
 
-    test do :empty_program |t|
+    test :empty_program do |t|
 
         t.arrange do |options|
             program_text = ""
@@ -93,8 +93,8 @@ class ParserTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
             p run_result
         end
 

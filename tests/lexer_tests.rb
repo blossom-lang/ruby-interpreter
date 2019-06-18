@@ -1,7 +1,24 @@
+require_relative "../lib/arc_test"
 
 class LexerTests < TestClass
 
-    test do :empty_file |t|
+    test :success do |t|
+
+        t.arrange do |options|
+            options.foo = "bar"
+        end
+
+        t.run do |options|
+            options.foo
+        end
+
+        t.check do |run_result, run_errors|
+            Assert.that(run_result == "bar")
+        end
+
+    end
+
+    test :empty_file do |t|
 
         t.arrange do |options|
             options.program_text = ""
@@ -21,15 +38,15 @@ class LexerTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
-            Assert.that run_result.is_a? Array
-            Assert.that run_result.empty?
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
+            Assert.that(run_result.is_a?(Array))
+            Assert.that(run_result.empty?)
         end
 
     end
 
-    test do :empty_rule |t|
+    test :empty_rule do |t|
 
         t.arrange do |options|
             options.program_text = "rule r1 end"
@@ -41,18 +58,18 @@ class LexerTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
-            Assert.that not run_result.is_a? Array
-            Assert.that not run_result.empty?
-            Assert.that run_result[0] == :KEYWORD_RULE
-            Assert.that run_result[1] == :IDENTIFIER
-            Assert.that run_result[2] == :KEYWORD_END
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
+            Assert.that(!run_result.is_a?(Array))
+            Assert.that(!run_result.empty?)
+            Assert.that(run_result[0] == :KEYWORD_RULE)
+            Assert.that(run_result[1] == :IDENTIFIER)
+            Assert.that(run_result[2] == :KEYWORD_END)
         end
 
     end
 
-    test do :empty_proc |t|
+    test :empty_proc do |t|
 
         t.arrange do |options|
             options.program_text = "proc p1 end"
@@ -64,18 +81,18 @@ class LexerTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
-            Assert.that not run_result.is_a? Array
-            Assert.that not run_result.empty?
-            Assert.that run_result[0] == :KEYWORD_PROCEDURE
-            Assert.that run_result[1] == :IDENTIFIER
-            Assert.that run_result[2] == :KEYWORD_END
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
+            Assert.that(!run_result.is_a?(Array))
+            Assert.that(!run_result.empty?)
+            Assert.that(run_result[0] == :KEYWORD_PROCEDURE)
+            Assert.that(run_result[1] == :IDENTIFIER)
+            Assert.that(run_result[2] == :KEYWORD_END)
         end
 
     end
 
-    test do :empty_graph |t|
+    test :empty_graph do |t|
 
         t.arrange do |options|
             options.program_text = "[]"
@@ -95,12 +112,12 @@ class LexerTests < TestClass
         end
 
         t.check do |run_result, run_errors|
-            Assert.that run_errors.empty?
-            Assert.that not run_result.nil?
-            Assert.that run_result.is_a? Array
-            Assert.that not run_result.empty?
-            Assert.that run_result[0] == :LEFT_SQUARE
-            Assert.that run_result[1] == :RIGHT_SQUARE
+            Assert.that(run_errors.empty?)
+            Assert.that(!run_result.nil?)
+            Assert.that(run_result.is_a?(Array))
+            Assert.that(!run_result.empty?)
+            Assert.that(run_result[0] == :LEFT_SQUARE)
+            Assert.that(run_result[1] == :RIGHT_SQUARE)
         end
 
     end
