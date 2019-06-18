@@ -270,9 +270,9 @@ class Options
     def self.help(&block)
         settings = OpenStruct.new
         block.call(settings)
-        @@help_commands = settings.commands
-        @@usage_header = settings.header
-        @@usage_footer = settings.footer
+        @@help_commands = settings.commands || []
+        @@usage_header = settings.header || ""
+        @@usage_footer = settings.footer || ""
     end
 
     def self.positional(&block)
@@ -313,6 +313,17 @@ class Options
 
     def self.parse(args=nil)
         args ||= [*ARGV]
+
+        # 0th pass:
+        #     check for help flags
+        @@help_commands.each do |param|
+            if args.any? { |a| a == param }
+                puts usage
+                exit(0)
+            end
+        end
+
+
         errors = []
         # 1st pass:
         #     check for any switches / switch lists
@@ -399,13 +410,17 @@ class Options
         return options
     end
 
-    def self.to_s
+    def self.usage
         if @@usage_string.nil?
             @@usage_string = @@usage_header + "\n"         
             # TODO: generate usage string from @@commands
             @@usage_string += @@usage_footer
         end
         return @@usage_string
+    end
+
+    def self.to_s
+        return usage
     end
 
 end
