@@ -17,6 +17,7 @@ module Objects
         end
 
         def find(args, types)
+            return false
         end
 
     end
@@ -43,13 +44,12 @@ module Objects
             end
         end
 
-        def find(args, types)
-            type_regex = types[@type]
+        def find(args)
             if !args.empty?
-                if type_regex.nil?
+                if @type.nil?
                     i = 0
                 else
-                    i = args.find_index { |a| a =~ type_regex}
+                    i = args.find_index { |a| Options::TypeChecker.is_type?(a, @type) }
                 end
                 if i.nil?
                     raise "Provided argument '#{args[0]}' needs to be the #{@type} type."
@@ -61,7 +61,9 @@ module Objects
                 else
                     @value = value
                 end
+                return true
             end
+            return false
         end
 
     end
@@ -99,7 +101,7 @@ module Objects
             @present = false
         end
 
-        def find(args, types)
+        def find(args)
             args.each_with_index do |arg, i|
                 if @commands.include?(arg)
                     args.delete_at(i)
@@ -109,18 +111,22 @@ module Objects
                     else
                         @value = true
                     end
+                    return true
                 end
             end
+            return false
         end
 
         def find_switch(switches)
             return if @switch.nil?
             if switches.include?(@switch)
                 switches.tr!(@switch, "")
+                # TODO: Should i set group value here??
                 @present = true
-                # TODO: set group value here?
-                @value   = true
+                @value = true
+                return true
             end
+            return false
         end
 
     end
@@ -136,6 +142,8 @@ module Objects
     #   - description
     #
     class Value < Base
+
+        attr_reader :present
 
         def initialize(settings, group=nil)
             raise "A value option needs a prefix. Otherwise, use a positional option" if settings.prefixes.nil? || settings.prefixes.empty?
@@ -154,17 +162,16 @@ module Objects
             @present = false
         end
 
-        def find(args, types)
+        def find(args)
             args.each_with_index do |arg, i|
                 if @prefixes.include?(arg) && i + @types.size < args.size
                     captures = args[i+1..i+@types.size]
                     values = []
-                    arg_types = types.keys
                     captures.each_with_index do |capture, i|
-                        if capture =~ types[arg_types[i]]
+                        if Options::TypeChecker.is_type?(capture, @types[i])
                             values.push(capture)
                         else
-                            raise "Provided argument '#{capture}' needs to be the #{arg_types[i]} type."
+                            raise "Provided argument '#{capture}' needs to be the #{@types[i]} type."
                         end
                     end
                     args.slice!(i..i+@types.size)
@@ -174,8 +181,10 @@ module Objects
                     else
                         @value = @types.size == 1 ? values[0] : values
                     end
+                    return true
                 end
             end
+            return false
         end
 
     end
@@ -218,12 +227,37 @@ end
 
 class Options
 
-    @@type_regexes = {
-        'FILE'   => /[\\\w\.\/]+\.\w+/,
-        'DIR'    => /[\\\w\.\/]+/,
-        'PATH'   => /[\\\w\.\/]+/,
-        'STRING' => /.+/,
-    }
+    class TypeChecker
+
+        @@type_regexes = {
+            'FILE'   => /[\\\w\.\/]+\.\w+/,
+            'DIR'    => /[\\\w\.\/]+/,
+            'PATH'   => /[\\\w\.\/]+/,
+            'STRING' => /.+/,
+        }
+
+        def self.is_type?(arg, type_name)
+            return true if type_name.nil?
+            return false if !(arg =~ @@type_regexes[type_name])
+            # TODO: more type checking (for file/dir)
+            # CLI error Code from here:
+            # https://unix.stackexchange.com/a/326811
+            # EPERM   1  Operation not permitted
+            # ENOENT  2  No such file or directory
+            # E2BIG   7  Argument list too long
+            # ENOEXEC 8  Exec format error
+            # EBADF   9  Bad file descriptor
+            # ECHILD  10 No child processes
+            # EAGAIN  11 Resource temporarily unavailable
+            # ENOMEM  12 Cannot allocate memory
+            # EACCES  13 Permission denied
+            # EEXIST  17 File exists
+            # ENOTDIR 20 Not a directory
+            # EISDIR  21 Is a directory
+            return true
+        end
+
+    end
 
     @@usage_header = ""
     @@usage_string = nil
@@ -279,27 +313,39 @@ class Options
 
     def self.parse(args=nil)
         args ||= [*ARGV]
+        errors = []
         # 1st pass:
-        #     go through every required flag and value option and extract the args (and following args as necessary)
-        @@commands.each do |param|
-            if param.required && param.is_a?(Objects::Flag) && !param.is_a?(Objects::Value)
-                param.find(args, @@type_regexes)
-            end
-        end
-        # 2nd pass:
         #     check for any switches / switch lists
         switch_lists = args.select { |arg| arg =~ /(?<![\-\w])\-[a-zA-Z]+/ }
         switches = switch_lists.inject("") { |memo, list| memo += list[1..-1] }
         @@commands.each do |param|
-            if param.is_a?(Objects::Flag) && !param.present
-                param.find_switch(switches)
+            if param.is_a?(Objects::Flag)
+                found = param.find_switch(switches)
+            end
+        end
+        # 2nd pass:
+        #     go through every required flag and value option and extract the args (and following args as necessary)
+        @@commands.each do |param|
+            if param.required && (param.is_a?(Objects::Flag) || param.is_a?(Objects::Value)) && !param.present
+                begin
+                    found = param.find(args)
+                rescue StandardError => e
+                    errors.push(e.to_s)
+                end
+                if !found
+                    errors.push("A #{param.name.to_s} argument is required")
+                end
             end
         end
         # 3rd pass:
         #     go through every non-required non-positional option and extract if there are matches
         @@commands.each do |param|
             if !param.required && !param.is_a?(Objects::Positional) && !param.is_a?(Objects::Group)
-                param.find(args, @@type_regexes)
+                begin
+                    found = param.find(args)
+                rescue StandardError => e
+                    errors.push(e.to_s)
+                end
             end
         end
         # 4th pass:
@@ -307,20 +353,34 @@ class Options
         #     go through required positional args and extract them
         @@commands.each do |param|
             if param.required && param.is_a?(Objects::Positional)
-                param.find(args, @@type_regexes)
+                begin
+                    found = param.find(args)
+                rescue StandardError => e
+                    errors.push(e.to_s)
+                end
+                if !found
+                    errors.push("A #{param.name.to_s} argument is required")
+                end
             end
         end
         # 4th pass:
         #     go through positional args that are part of required groups and extract them
         @@commands.each do |param|
             if param.is_a?(Objects::Positional) && param.group && param.group.required && !param.group.value
-                param.find(args, @@type_regexes)
+                begin
+                    found = param.find(args)
+                rescue StandardError => e
+                    errors.push(e.to_s)
+                end
+                if !found
+                    errors.push("A #{param.name.to_s} argument is required")
+                end
             end
         end        
         # Make sure any required groups have values.
         @@commands.each do |param|
             if param.is_a?(Objects::Group) && param.required && param.value.nil?
-                raise "An argument for #{param.name.to_s} is required."
+                errors.push "A #{param.name.to_s} argument is required"
             end
         end
         
@@ -328,6 +388,14 @@ class Options
         @@commands.each do |param|
             options[param.name] = param.value
         end
+
+        if !errors.empty?
+            errors.uniq.each do |err|
+                $stderr.puts err
+            end
+            exit(22)
+        end
+
         return options
     end
 
