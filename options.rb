@@ -1,4 +1,5 @@
 require 'ostruct'
+require 'io/console'
 
 module Objects
 
@@ -7,6 +8,12 @@ module Objects
         attr_reader :value
         attr_reader :required
         attr_reader :group
+        attr_reader :description
+        attr_reader :hint
+
+        def initialize(settings)
+            @hint = settings.hint || settings.name.to_s || nil
+        end
 
         def name
             if @group
@@ -33,14 +40,15 @@ module Objects
     class Positional < Base
 
         def initialize(settings, group=nil)
+            super(settings)
             @type = settings.type || nil
+            @description = settings.description || ""
             if group
                 @group = group
             else
                 raise "A positional option needs a name" if settings.name.nil?
                 @name        = settings.name
                 @required    = settings.required.nil? ? false : settings.required
-                @description = settings.description || ""
             end
         end
 
@@ -81,11 +89,13 @@ module Objects
     class Flag < Base
 
         attr_reader :present
+        attr_reader :commands
 
         def initialize(settings, group=nil)
+            super(settings)
             raise "An options flag needs a commands list" if settings.commands.nil?
             @commands = settings.commands
-
+            @description = settings.description || ""
             if group
                 raise "A group option needs a value" if settings.value.nil?
                 @flag_value = settings.value
@@ -96,7 +106,6 @@ module Objects
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
                 @switch      = settings.switch || nil
-                @description = settings.description || ""
             end
             @present = false
         end
@@ -144,12 +153,15 @@ module Objects
     class Value < Base
 
         attr_reader :present
+        attr_reader :prefixes
 
         def initialize(settings, group=nil)
+            super(settings)
             raise "A value option needs a prefix. Otherwise, use a positional option" if settings.prefixes.nil? || settings.prefixes.empty?
             raise "A value option needs a type list" if settings.types.nil? || settings.types.empty?
             @prefixes = settings.prefixes
             @types    = settings.types
+            @description = settings.description || ""
             if group
                 @group = group
             else
@@ -157,7 +169,6 @@ module Objects
                 @name        = settings.name
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
-                @description = settings.description || ""
             end
             @present = false
         end
@@ -219,6 +230,7 @@ module Objects
             @required    = settings.required.nil? ? false : settings.required
             @default     = settings.default || nil
             @description = settings.description || ""
+            @hint        = settings.hint
         end
 
     end
@@ -259,9 +271,10 @@ class Options
 
     end
 
-    @@usage_header = ""
-    @@usage_string = nil
-    @@usage_footer = ""
+    @@usage_header  = ""
+    @@usage_command = ""
+    @@usage_string  = nil
+    @@usage_footer  = ""
     @@help_commands = []
     @@commands = []
 
@@ -271,8 +284,9 @@ class Options
         settings = OpenStruct.new
         block.call(settings)
         @@help_commands = settings.commands || []
-        @@usage_header = settings.header || ""
-        @@usage_footer = settings.footer || ""
+        @@usage_header  = settings.header   || ""
+        @@usage_footer  = settings.footer   || ""
+        @@usage_command = settings.name     || ""
     end
 
     def self.positional(&block)
@@ -318,7 +332,7 @@ class Options
         #     check for help flags
         @@help_commands.each do |param|
             if args.any? { |a| a == param }
-                puts usage
+                puts usage(true)
                 exit(0)
             end
         end
@@ -410,12 +424,104 @@ class Options
         return options
     end
 
-    def self.usage
+    def self.usage(detailed=false)
         if @@usage_string.nil?
-            @@usage_string = @@usage_header + "\n"         
-            # TODO: generate usage string from @@commands
+
+            indent    = " " * 4
+            prefix    = indent
+            value     = "<>"
+            required  = "{}"
+            optional  = "[]"
+            separator = " | "
+
+            @@usage_string = @@usage_header + "\n\n"
+            @@usage_string += indent + @@usage_command + " "
+            prefix += " " * (@@usage_command.size + 1)
+            first_arg = true
+            @@commands.select { |param| param.is_a?(Objects::Positional) && !param.group }.each do |param|
+                @@usage_string += prefix unless first_arg
+                @@usage_string += value[0] + param.hint + value[-1]
+                @@usage_string += "\n"
+                first_arg = false
+            end
+            @@commands.group_by { |param| param.group }.reject { |key| key.nil? }.each do |group, params|
+                @@usage_string += prefix
+                @@usage_string += group.required ? required[0] : optional[0]
+                @@usage_string += " "
+                @@usage_string += params.map do |param| 
+                    case param
+                    when Objects::Positional
+                        value[0] + param.hint + value[-1]
+                    when Objects::Flag
+                        param.commands.join(separator)
+                    when Objects::Value
+                        required[0] + param.prefixes.join(separator) + required[-1] + " " + value[0] + param.hint + value[-1]
+                    else
+                        param.hint
+                    end
+                end.join(separator)
+                @@usage_string += " "
+                @@usage_string += group.required ? required[-1] : optional[-1]
+                @@usage_string += "\n"
+            end
+            @@commands.select { |param| !param.is_a?(Objects::Positional) && !param.is_a?(Objects::Group) && !param.group }.each do |param|
+                @@usage_string += prefix
+                @@usage_string += optional[0] + " " if !param.required
+                case param
+                when Objects::Flag
+                    @@usage_string += param.commands.join(separator)
+                when Objects::Value
+                    if param.prefixes.size > 1
+                        @@usage_string += required[0] + param.prefixes.join(separator) + required[-1]
+                    else
+                        @@usage_string += param.prefixes.join(separator)
+                    end
+                    @@usage_string += " " + value[0] + param.hint + value[-1]
+                else
+                    @@usage_string += param.hint
+                end
+                @@usage_string += " " + optional[-1] if !param.required
+                @@usage_string += "\n"
+            end
+            if detailed
+                @@usage_string += "\n"
+                @@usage_string += "Arguments:\n\n"
+
+                param_names = @@commands.select { |param| param.is_a?(Objects::Flag) || param.is_a?(Objects::Value) }.map do |param|
+                    case param
+                    when Objects::Flag
+                        [param, param.commands[0]]
+                    when Objects::Value
+                        [param, param.prefixes[0] + " <#{param.hint}>"]
+                    else
+                        [param, param.hint]
+                    end
+                end
+                longest_arg_name_size = param_names.max_by { |param| param[1].size }[1].size
+                max_description_length = IO.console.winsize[1] - indent.size - longest_arg_name_size - 3
+
+                param_names = param_names.to_h
+                param_names.each do |param, param_name|
+                    @@usage_string += indent
+                    @@usage_string += param_name.ljust(longest_arg_name_size)
+                    @@usage_string += " : "
+                    description_lines = param.description.chars.each_slice(max_description_length).map(&:join)
+                    @@usage_string += description_lines.delete_at(0) || ""
+                    description_lines.each do |line|
+                        @@usage_string += "\n"
+                        @@usage_string += indent
+                        @@usage_string += " ".ljust(longest_arg_name_size)
+                        @@usage_string += "   "
+                        @@usage_string += line
+                    end
+                    @@usage_string += "\n"
+                end
+            end
+
+            @@usage_string += "\n"
             @@usage_string += @@usage_footer
         end
+
         return @@usage_string
     end
 
