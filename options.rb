@@ -501,17 +501,18 @@ class Options
                 max_description_length = IO.console.winsize[1] - indent.size - longest_arg_name_size - 3
 
                 param_names = param_names.to_h
+                separator = " : "
                 param_names.each do |param, param_name|
                     @@usage_string += indent
                     @@usage_string += param_name.ljust(longest_arg_name_size)
-                    @@usage_string += " : "
+                    @@usage_string += separator
                     description_lines = param.description.chars.each_slice(max_description_length).map(&:join)
                     @@usage_string += description_lines.delete_at(0) || ""
                     description_lines.each do |line|
                         @@usage_string += "\n"
                         @@usage_string += indent
                         @@usage_string += " ".ljust(longest_arg_name_size)
-                        @@usage_string += "   "
+                        @@usage_string += " " * separator.size
                         @@usage_string += line
                     end
                     @@usage_string += "\n"
