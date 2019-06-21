@@ -96,6 +96,7 @@ module Objects
             raise "An options flag needs a commands list" if settings.commands.nil?
             @commands = settings.commands
             @description = settings.description || ""
+            @switch      = settings.switch || nil
             if group
                 raise "A group option needs a value" if settings.value.nil?
                 @flag_value = settings.value
@@ -105,7 +106,6 @@ module Objects
                 @name        = settings.name
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
-                @switch      = settings.switch || nil
             end
             @present = false
         end
@@ -130,9 +130,12 @@ module Objects
             return if @switch.nil?
             if switches.include?(@switch)
                 switches.tr!(@switch, "")
-                # TODO: Should i set group value here??
                 @present = true
-                @value = true
+                if @group
+                    @group.value = @flag_value
+                else
+                    @value = true
+                end
                 return true
             end
             return false
@@ -336,7 +339,6 @@ class Options
                 exit(0)
             end
         end
-
 
         errors = []
         # 1st pass:

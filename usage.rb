@@ -30,6 +30,12 @@ Options.group do |g|
             v.description = "The file path to the blossom graph."
             v.hint        = "path/to/graph.blsm"
         end,
+        Options.flag do |v|
+            v.commands    = ["--stack"]
+            v.switch      = "s"
+            v.description = "This runs blossom, first creating a unary tree with label values equal to any command line arguments."
+            v.value       = :stack
+        end,
     ]
 end
 
