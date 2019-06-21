@@ -10,9 +10,11 @@ module Objects
         attr_reader :group
         attr_reader :description
         attr_reader :hint
+        attr_reader :present
 
         def initialize(settings)
             @hint = settings.hint || settings.name.to_s || nil
+            @present = false
         end
 
         def name
@@ -62,6 +64,7 @@ module Objects
                 if i.nil?
                     raise "Provided argument '#{args[0]}' needs to be the #{@type} type."
                 end
+                @present = true
                 value = args[i]
                 args.delete_at(i)
                 if @group
@@ -88,8 +91,8 @@ module Objects
     #
     class Flag < Base
 
-        attr_reader :present
         attr_reader :commands
+        attr_reader :switch
 
         def initialize(settings, group=nil)
             super(settings)
@@ -107,7 +110,6 @@ module Objects
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
             end
-            @present = false
         end
 
         def find(args)
@@ -129,7 +131,6 @@ module Objects
         def find_switch(switches)
             return if @switch.nil?
             if switches.include?(@switch)
-                switches.tr!(@switch, "")
                 @present = true
                 if @group
                     @group.value = @flag_value
@@ -155,7 +156,6 @@ module Objects
     #
     class Value < Base
 
-        attr_reader :present
         attr_reader :prefixes
 
         def initialize(settings, group=nil)
@@ -173,7 +173,6 @@ module Objects
                 @required    = settings.required.nil? ? false : settings.required
                 @default     = settings.default || nil
             end
-            @present = false
         end
 
         def find(args)
@@ -328,6 +327,11 @@ class Options
         return g
     end
 
+    def self.print_and_return(arg)
+        puts arg.inspect
+        return arg
+    end
+
     def self.parse(args=nil)
         args ||= [*ARGV]
 
@@ -348,6 +352,11 @@ class Options
         @@commands.each do |param|
             if param.is_a?(Objects::Flag)
                 found = param.find_switch(switches)
+                if found
+                    args.map! { |arg| switch_lists.include?(arg) ? arg.tr(param.switch, "") : arg }
+                    args.reject! { |arg| arg == "-" }
+                end
+                # TODO: remove any found switches
             end
         end
         # 2nd pass:
@@ -410,11 +419,12 @@ class Options
                 errors.push "A #{param.name.to_s} argument is required"
             end
         end
-        
+
         options = OpenStruct.new
         @@commands.each do |param|
             options[param.name] = param.value
         end
+        options.args = args
 
         if !errors.empty?
             errors.uniq.each do |err|
