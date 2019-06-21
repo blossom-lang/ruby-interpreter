@@ -1,0 +1,241 @@
+%YAML 1.2
+---
+# http://www.sublimetext.com/docs/3/syntax.html
+# https://www.sublimetext.com/docs/3/scope_naming.html
+
+file_extensions:
+  - blsm
+
+scope: source.blossom
+
+variables:
+  ident: '[a-zA-Z_][a-zA-Z0-9_]*'
+  type:  '\b(?:bool|boolean|int|integer|rat|rational|real|string|any)\b'
+
+contexts:
+
+  #----------------#
+  # BLOSSOM GRAPHS #
+  #----------------#
+
+  graph_main:
+    - meta_scope: meta.graph.blossom
+    - match: '\['
+      scope: punctuation.section.block.begin.blossom
+      push: graph_nodes
+
+  graph_nodes:
+    - match: '\]'
+      scope: punctuation.section.block.end.blossom
+      pop: true
+    - match: '\|'
+      scope: punctuation.separator.blossom
+      set: graph_edges
+    - match: '(\d+)\s*(\()'
+      captures:
+        1: entity.name.node.blossom
+        2: punctuation.section.group.begin.blossom
+      push: graph_label
+    - match: '\d\s*(?=[^\(])'
+      scope: entity.name.node.blossom
+    - match: ','
+      scope: punctuation.separator.blossom
+
+  graph_edges:
+    - match: '\]'
+      pop: true
+    - match: '(\d+)\s*(\->)\s*(\d+)\s*(\()'
+      captures:
+        1: entity.name.node.blossom
+        2: punctuation.accessor.blossom
+        3: entity.name.node.blossom
+        4: punctuation.section.group.begin.blossom
+      push: graph_label
+    - match: '(\d+)\s*(\->)\s*(\d+)\s*(?=[^\(])'
+      captures:
+        1: entity.name.node.blossom
+        2: punctuation.accessor.blossom
+        3: entity.name.node.blossom
+    - match: ','
+      scope: punctuation.separator.blossom
+
+  graph_label:
+    - meta_scope: meta.label.blossom
+    - match: '\)'
+      scope: punctuation.section.group.begin.blossom
+      pop: true
+    - match: '(?:void|unmarked)'
+      scope: constant.language.blossom
+    - include: literals
+    - include: operators
+
+  operators:
+    - match: '(?:\+|\-|\*|\/)'
+      scope: keyword.operator.arithmetic.blossom.
+    - match: '(?:=|==|!=|<|<=|>|>=|^=|$=|/=|~=)'
+      scope: keyword.operator.logical.blossom.
+
+  literals:
+    - match: '(?:TRUE|FALSE)'
+      scope: constant.language.blossom
+    - match: '\d[\d_]*\.\d[\d_]*'
+      scope: constant.numeric.real.blossom
+    - match: '\d[\d_]*/\d[\d_]*'
+      scope: constant.numeric.rational.blossom
+    - match: '\d+'
+      scope: constant.numeric.integer.blossom
+    - match: '"'
+      scope: punctuation.definition.string.begin.blossom
+      push: literal_string
+
+
+  literal_string:
+    - meta_scope: string.quoted.double.blossom
+    - match: '\\.'
+      scope: constant.character.escape.blossom
+    - match: '"'
+      scope: punctuation.definition.string.end.blossom
+      pop: true
+
+
+  #------------------#
+  # BLOSSOM PROGRAMS #
+  #------------------#
+
+  program_main:
+    - include: rules
+    - include: procs
+    - include: rule_calls
+
+  rule_calls:
+    - match: 'try'
+      scope: support.function.blossom
+    - match: '(?:if|with)'
+      scope: support.function.blossom
+    - match: '(?<!\s)!'
+      scope: keyword.operator.blossom
+    - match: '{'
+      scope: punctuation.section.block.begin.blossom
+    - match: '}'
+      scope: punctuation.section.block.end.blossom
+
+  procs:
+    - match: 'proc'
+      scope: keyword.control.blossom
+      push: [proc_inner, rule_name]
+
+  proc_inner:
+    - meta_scope: meta.block.blossom
+    - include: rule_calls
+    - match: '\bend\b'
+      scope: keyword.control.blossom
+      pop: true
+    - match: ';'
+      scope: punctuation.terminator.blossom
+      pop: true
+
+  rules:
+    - match: 'rule'
+      scope: keyword.control.blossom
+      push: [rule_end, rule_addendums, rule_conditions, rule_graphs, rule_application, rule_graphs, rule_variables, rule_name]
+
+  rule_name:
+    - match: '{{ident}}'
+      scope: entity.name.function.blossom
+      pop: true
+
+  rule_variables:
+    - match: '<'
+      scope: punctuation.section.group.begin.blossom
+      set: rule_variables_inner
+    - match: '(?=[^<\s])'
+      pop: true
+
+  rule_variables_inner:
+    - meta_scope: meta.group.blossom
+    - match: '>'
+      scope: punctuation.section.group.end.blossom
+      pop: true
+    - match: '{{type}}'
+      scope: storage.type.blossom
+      push:
+        - match: ","
+          pop: true
+        - match: "(?=>)"
+          pop: true
+        - match: "{{ident}}"
+          scope: variable.parameter.blossom
+
+  rule_application:
+    - match: '=>'
+      scope: keyword.control.blossom
+      pop: true
+
+  rule_graphs:
+    - match: '\['
+      scope: punctuation.section.block.begin.blossom
+      set: rule_graph_nodes
+
+  rule_graph_nodes:
+    - meta_scope: meta.graph.blossom
+    - match: '(\d+)\s*(\()'
+      captures:
+        1: entity.name.node.blossom
+        2: punctuation.section.group.begin.blossom
+      push: rule_graph_label
+    - include: graph_nodes
+
+  rule_graph_label:
+    - meta_scope: meta.lolz.foo
+    - include: graph_label
+    - match: '{{ident}}'
+      scope: variable.other.member.blossom
+
+  rule_conditions:
+    - match: '\b(?:where)\b'
+      scope: keyword.control.blossom
+      set: rule_condition
+    - match: '(?=[^w\s])'
+      pop: true
+
+  rule_addendums:
+    - match: '\b(?:also)\b'
+      scope: keyword.control.blossom
+      set: rule_addendum
+    - match: '(?=[^a\s])'
+      pop: true
+
+  rule_condition:
+    - meta_scope: meta.condition.blossom
+    - match: (?=also|end|;)
+      pop: true
+    - include: literals
+    - include: operators
+    - match: '{{ident}}'
+      scope: variable.other.member.blossom
+    - match: '\b(?:in|out|adj|edge)\b' # TODO: add more rule condition functions
+      scope: support.function.blossom
+
+  rule_addendum:
+    - meta_scope: meta.addendum.blossom
+    - match: (?=end|;)
+      pop: true
+    - include: literals
+    - include: operators
+    - match: '\b(?:print)\b' # TODO: add more rule condition procedures
+      scope: support.function.blossom
+
+  rule_end:
+    - meta_scope: meta.function.blossom
+    - match: '\bend\b'
+      scope: keyword.control.blossom
+      pop: true
+    - match: ';'
+      scope: punctuation.terminator.blossom
+      pop: true
+
+  main:
+    - match: '(?=\[)'
+      set: graph_main
+    - match: '(?=[^\[])'
+      set: program_main
