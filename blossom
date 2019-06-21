@@ -4,21 +4,31 @@ VERSION = "0.1.0"
 
 require_relative 'usage'
 
+args = Options.parse
+
 def version
     puts "blossom v#{VERSION}"
 end
 
-def run(program_file:, graph_input:, output_file:, verbose:, tracing:, trace_dir:, colour_strategy:, keep_rationals:, output_type:, validate_only:)
-    p program_file
+def run(args:, program_file:, graph_input:, output_file:, verbose:, tracing:, trace_dir:, colour_strategy:, keep_rationals:, output_type:, validate_only:)
+    case graph_input
+    when :stack
+        graph_input = "[\n"
+        args.each_with_index do |arg, i|
+            graph_input += "\t#{i+1} (#{arg}),\n"
+        end
+        graph_input += "|\n"
+        for i in 1...args.size do
+            graph_input += "\t#{i} -> #{i+1},\n"
+        end
+        graph_input += "]\n"
+    else
+    end
     p graph_input
+    p program_file
     p keep_rationals
     p tracing
 end
-
-args = Options.parse
-
-p args
-puts
 
 if args.version
     version
@@ -26,5 +36,3 @@ else
     args.delete_field("version")
     run(**args.to_h)
 end
-
-# send(BlossomUsage.action, **BlossomUsage.options) if BlossomUsage.action
