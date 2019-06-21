@@ -146,6 +146,8 @@ class Tokeniser
         when '='
             if advance_if('>')
                 add_token(:RIGHT_ARROW)
+            elsif advance_if('=')
+                add_token(:EQUAL)
             else
                 add_token(:EQUAL)
             end
@@ -179,7 +181,7 @@ class Tokeniser
         when '$'
             add_token(:ENDS_WITH) if advance_if("=")
         when '~'
-            add_token(:CONTAINS) if advance_if("=")
+            add_token(:MATCHES) if advance_if("=")
 
 
         when ' ', "\r", "\t"
@@ -193,6 +195,8 @@ class Tokeniser
                 while !eof? && peek != "\n"
                     advance
                 end
+            elsif advance_if('=')
+                add_token(:CONTAINS)
             else
                 add_token(:STROKE)
             end
